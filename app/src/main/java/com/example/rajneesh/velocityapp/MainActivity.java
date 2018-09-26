@@ -22,26 +22,41 @@ import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.DefaultItemAnimator;
+import android.support.v7.widget.DividerItemDecoration;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.github.anastr.speedviewlib.PointerSpeedometer;
+
+import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity  implements SensorEventListener{
     SensorManager sensorManager;
     Sensor accelerometer;
-   TextView speed,gpspeed,kalmanspeed;
+    PointerSpeedometer batterymeter;
+    ProgressBar progressBar;
+    RecyclerView recyclerView;
+    Adapter adapter;
+    ArrayList<Stations_info> infos;
+    TextView km;
+    int disleft=10,perc;
+  // TextView speed,gpspeed,kalmanspeed;
     LocationManager locationmanager;
     Boolean loc_changed_called= false;
-    double time;
+    float time;
     int count=0;
-    double ax=0,ay=0,az=0,vx,vy,vz,v_acc,v_gps;
+    float ax=0,ay=0,az=0,vx,vy,vz,v_acc,v_gps;
 
     LocationListener locationListener;
 
@@ -54,9 +69,36 @@ public class MainActivity extends AppCompatActivity  implements SensorEventListe
             Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
             setSupportActionBar(toolbar);
 
-            speed = findViewById(R.id.speed);
-            gpspeed = findViewById(R.id.gpsspeed);
-            kalmanspeed = findViewById(R.id.kalmanspeed);
+//            speed = findViewById(R.id.speed);
+//            gpspeed = findViewById(R.id.gpsspeed);
+//            kalmanspeed = findViewById(R.id.kalmanspeed);
+            batterymeter= findViewById(R.id.batterymeter);
+            progressBar= findViewById(R.id.progressBar);
+            recyclerView= findViewById(R.id.recyclerview);
+            //  recyclerView.setNestedScrollingEnabled(false);
+            //recyclerView.hasNestedScrollingParent()
+
+            km= findViewById(R.id.km);
+
+            perc= (disleft*100)/50;
+            progressBar.setProgress(perc);
+          //  batterymeter.speedTo(50);
+            km.setText(disleft+"Kms Remaining");
+
+            Stations_info info1= new Stations_info(15,"Rohini Sector 18_MetroStation");
+            Stations_info info2= new Stations_info(15,"Rohini west Metro");
+            infos= new ArrayList<>();
+            infos.add(info1);
+            infos.add(info2);
+            adapter= new Adapter(this,infos);
+            recyclerView.setAdapter(adapter);
+            adapter.notifyDataSetChanged();
+            recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false));
+            recyclerView.addItemDecoration(new DividerItemDecoration(this, DividerItemDecoration.VERTICAL));
+            recyclerView.setItemAnimator(new DefaultItemAnimator());
+
+
+
 
             sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
             accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
@@ -70,11 +112,12 @@ public class MainActivity extends AppCompatActivity  implements SensorEventListe
                 public void onLocationChanged(Location location) {
                     loc_changed_called = true;
                     v_gps = location.getSpeed() * (18 / 5);
-                    gpspeed.setText("" + v_gps);
+                   // gpspeed.setText("" + v_gps);
                     if (location == null) {
-                        kalmanspeed.setText(v_acc + "" + "no gps data inside func");
+                        batterymeter.speedTo(v_acc);
+                      //  kalmanspeed.setText(v_acc + "" + "no gps data inside func");
                     } else {
-                        kalmanfilter(20.0, 5.0, v_acc, v_gps);
+                        kalmanfilter(20.0f, 5.0f, v_acc, v_gps);
 
                     }
 
@@ -185,8 +228,8 @@ public class MainActivity extends AppCompatActivity  implements SensorEventListe
             vy = (ay * time) * (18 / 5);
             vz = (az * time) * (18 / 5);
             ax = ay = az = 0;
-            v_acc = Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2) + Math.pow(vz, 2));
-            speed.setText("" + v_acc);
+            v_acc = (float)Math.sqrt(Math.pow(vx, 2) + Math.pow(vy, 2) + Math.pow(vz, 2));
+           // speed.setText("" + v_acc);
             if (loc_changed_called == false)
                 //kalmanspeed.setText(v_acc + "no gps");
             time = System.currentTimeMillis() / 1000;
@@ -212,12 +255,19 @@ public class MainActivity extends AppCompatActivity  implements SensorEventListe
         }
     }
 
-    public void kalmanfilter(Double E_est, Double E_mea,Double Est_tm,Double Meas){
+    public void kalmanfilter(Float E_est, Float E_mea,Float Est_tm,Float Meas){
         try {
-            Double kg = E_est / (E_est + E_mea);
-            Double Est_t = Est_tm + (kg * (Meas - Est_tm));
-            Double nE_est = (1 - kg) * (E_est);
-            kalmanspeed.setText(Est_t + "");
+            Float kg,Est_t=0.0f,nE_est;
+            for(int i=0;i<5;i++) {
+                 kg = E_est / (E_est + E_mea);
+                 Est_t = Est_tm + (kg * (Meas - Est_tm));
+                 nE_est = (1 - kg) * (E_est);
+                 E_est=nE_est;
+                 Est_tm= Est_t;
+                 Meas= v_gps;
+            }
+          //  kalmanspeed.setText(Est_t + "");
+            batterymeter.speedTo(Est_t);
 //            try {
 //                kalmanfilter(nE_est, E_mea, Est_t, v_gps);
 //            }
